@@ -1,0 +1,65 @@
+{
+  "default_model_id": "ollama-qwen",
+  "models": [
+    {
+      "id": "ollama-qwen",
+      "name": "Qwen2.5（Ollama 本地·免费开源）",
+      "provider": "ollama",
+      "model": "qwen2.5:7b",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "api_key_env": null,
+      "free": true,
+      "note": "需本机安装 Ollama 并执行: ollama pull qwen2.5:7b"
+    },
+    {
+      "id": "ollama-llama",
+      "name": "Llama3.2（Ollama 本地·免费开源）",
+      "provider": "ollama",
+      "model": "llama3.2",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "api_key_env": null,
+      "free": true,
+      "note": "需本机安装 Ollama 并执行: ollama pull llama3.2"
+    },
+    {
+      "id": "deepseek-chat",
+      "name": "DeepSeek Chat",
+      "provider": "deepseek",
+      "model": "deepseek-chat",
+      "base_url": "https://api.deepseek.com/v1",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "free": false,
+      "note": "https://platform.deepseek.com 申请 Key → backend/.env"
+    },
+    {
+      "id": "qwen-dashscope",
+      "name": "通义千问（阿里云 DashScope）",
+      "provider": "dashscope",
+      "model": "qwen-plus",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "api_key_env": "DASHSCOPE_API_KEY",
+      "free": false,
+      "note": "https://dashscope.console.aliyun.com 申请 Key → backend/.env"
+    },
+    {
+      "id": "doubao-ark",
+      "name": "豆包（火山方舟）",
+      "provider": "volcengine",
+      "model": "ep-xxxxxxxx",
+      "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+      "api_key_env": "ARK_API_KEY",
+      "free": false,
+      "note": "控制台创建推理接入点，把 model 改成你的 ep-xxxx；Key 写入 ARK_API_KEY"
+    },
+    {
+      "id": "siliconflow-qwen",
+      "name": "Qwen2.5-7B（硅基流动·备选）",
+      "provider": "siliconflow",
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "base_url": "https://api.siliconflow.cn/v1",
+      "api_key_env": "SILICONFLOW_API_KEY",
+      "free": false,
+      "note": "https://cloud.siliconflow.cn 申请 Key（官方千问的备选通道）"
+    }
+  ]
+}

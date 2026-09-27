@@ -1,0 +1,20 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [114.615, 30.458] },
+      "properties": { "name": "中国地质大学（武汉）未来城校区", "category": "campus" }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [114.618, 30.460] },
+      "properties": { "name": "示例小学", "category": "school" }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [114.612, 30.455] },
+      "properties": { "name": "示例中学", "category": "school" }
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [114.613, 30.459] },
+      "properties": { "name": "示例公园", "category": "park" }
+    }
+  ]
+}

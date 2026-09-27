@@ -1,0 +1,15 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [114.616, 30.457] },
+      "properties": { "id": "C2026001", "name": "模拟投诉点", "category": "complaint" }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [114.614, 30.462] },
+      "properties": { "id": "P1", "name": "拟建点 P1", "category": "project" }
+    }
+  ]
+}

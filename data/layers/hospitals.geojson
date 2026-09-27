@@ -1,0 +1,15 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [114.617, 30.456] },
+      "properties": { "name": "示例社区医院", "category": "hospital" }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [114.610, 30.461] },
+      "properties": { "name": "示例诊所", "category": "hospital" }
+    }
+  ]
+}
