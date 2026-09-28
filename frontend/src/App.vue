@@ -2,8 +2,17 @@
   <div class="layout">
     <header class="topbar">
       <div class="brand">
-        <h1>空间问答与研判助手</h1>
-        <p>{{ campusName }}</p>
+        <img
+          class="brand-logo"
+          src="/cug-wh-logo.png"
+          alt="中国地质大学（武汉）校徽"
+          width="48"
+          height="48"
+        />
+        <div class="brand-text">
+          <h1>空间问答与研判助手</h1>
+          <p>{{ campusName }}</p>
+        </div>
       </div>
       <div class="header-right">
         <label class="model-select">
@@ -322,13 +331,30 @@ onUnmounted(() => {
   color: #f8fafc;
 }
 
-.brand h1 {
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.brand-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15);
+}
+
+.brand-text h1 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
 }
 
-.brand p {
+.brand-text p {
   margin: 4px 0 0;
   font-size: 13px;
   opacity: 0.8;
@@ -338,6 +364,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .model-select {
@@ -348,8 +375,10 @@ onUnmounted(() => {
 }
 
 .model-select select {
-  max-width: 260px;
-  padding: 6px 8px;
+  width: 360px;
+  max-width: min(360px, 42vw);
+  min-width: 280px;
+  padding: 6px 10px;
   border-radius: 6px;
   border: 1px solid #334155;
   background: #1e293b;
