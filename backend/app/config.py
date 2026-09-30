@@ -1,10 +1,15 @@
 from pathlib import Path
 
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT_DIR / "data"
 BACKEND_DIR = Path(__file__).resolve().parents[1]
+
+# 把 .env 注入 os.environ，供 Agent / models 用 os.getenv 读取 API Key
+load_dotenv(BACKEND_DIR / ".env", encoding="utf-8")
+load_dotenv(ROOT_DIR / ".env", encoding="utf-8")
 
 
 class Settings(BaseSettings):
