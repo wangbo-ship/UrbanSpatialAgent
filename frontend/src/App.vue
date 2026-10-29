@@ -33,7 +33,9 @@
       <aside class="panel chat-panel">
         <div class="panel-head">
           <h2>对话</h2>
-          <p class="hint">可切换模型；未配置模型时会自动规则回退，Demo 仍可演示。</p>
+          <p class="hint">
+            流式输出已开启；可点 Demo；完成后可导出研判报告。无模型时自动规则回退。
+          </p>
         </div>
 
         <div class="demos-row">
@@ -46,6 +48,14 @@
             @click="runDemo(d)"
           >
             {{ d.title }}
+          </button>
+          <button
+            type="button"
+            class="demo-btn report-btn"
+            :disabled="sending || !lastResult"
+            @click="exportReport"
+          >
+            导出研判报告
           </button>
         </div>
 
@@ -107,6 +117,8 @@ const apiOk = ref(null)
 const input = ref('')
 const sending = ref(false)
 const messages = ref([])
+const lastResult = ref(null)
+const lastQuestion = ref('')
 
 let map = null
 let baseLayers = []
@@ -266,11 +278,21 @@ async function sendQuestion() {
   messages.value.push({ role: 'user', content: question })
   input.value = ''
   sending.value = true
+  lastQuestion.value = question
+  lastResult.value = null
   await nextTick()
   if (msgBox.value) msgBox.value.scrollTop = msgBox.value.scrollHeight
 
+  const assistantIdx =
+    messages.value.push({
+      role: 'assistant',
+      content: '',
+      meta: '流式分析中…',
+      trace: [],
+    }) - 1
+
   try {
-    const data = await fetchJson('/api/chat', {
+    const res = await fetch('/api/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -278,22 +300,118 @@ async function sendQuestion() {
         model_id: selectedModelId.value || null,
       }),
     })
-    messages.value.push({
-      role: 'assistant',
-      content: data.answer || '',
-      meta: `模式: ${data.mode || '-'} · 模型: ${data.model_id || '-'}`,
-      trace: data.trace || [],
-    })
-    applyMapActions(data.map_actions || [])
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`)
+    }
+    if (!res.body) {
+      throw new Error('浏览器不支持流式读取')
+    }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let finalData = null
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const parts = buffer.split('\n\n')
+      buffer = parts.pop() || ''
+      for (const part of parts) {
+        const line = part
+          .split('\n')
+          .map((l) => l.trim())
+          .find((l) => l.startsWith('data:'))
+        if (!line) continue
+        const payload = line.slice(5).trim()
+        if (!payload) continue
+        let ev
+        try {
+          ev = JSON.parse(payload)
+        } catch {
+          continue
+        }
+        const msg = messages.value[assistantIdx]
+        if (ev.type === 'status') {
+          msg.meta = ev.message || '分析中…'
+        } else if (ev.type === 'tool') {
+          msg.trace = [
+            ...(msg.trace || []),
+            {
+              tool: ev.tool,
+              args: ev.args,
+              result_summary: ev.result_summary,
+            },
+          ]
+          msg.meta = `工具: ${ev.tool}`
+        } else if (ev.type === 'token') {
+          msg.content = (msg.content || '') + (ev.content || '')
+        } else if (ev.type === 'final') {
+          finalData = ev.data || {}
+          msg.content = finalData.answer || msg.content || ''
+          msg.meta = `模式: ${finalData.mode || '-'} · 模型: ${finalData.model_id || '-'}`
+          msg.trace = finalData.trace || msg.trace || []
+        } else if (ev.type === 'error') {
+          msg.content = `请求失败：${ev.message || 'unknown'}`
+          msg.meta = '错误'
+        }
+        await nextTick()
+        if (msgBox.value) msgBox.value.scrollTop = msgBox.value.scrollHeight
+      }
+    }
+
+    if (finalData) {
+      lastResult.value = {
+        question,
+        answer: finalData.answer || '',
+        trace: finalData.trace || [],
+        mode: finalData.mode,
+        model_id: finalData.model_id,
+        knowledge_hits: finalData.knowledge_hits || [],
+      }
+      applyMapActions(finalData.map_actions || [])
+    }
   } catch (e) {
-    messages.value.push({
-      role: 'assistant',
-      content: `请求失败：${e.message || e}`,
-    })
+    messages.value[assistantIdx].content = `请求失败：${e.message || e}`
+    messages.value[assistantIdx].meta = '错误'
   } finally {
     sending.value = false
     await nextTick()
     if (msgBox.value) msgBox.value.scrollTop = msgBox.value.scrollHeight
+  }
+}
+
+async function exportReport() {
+  if (!lastResult.value) return
+  try {
+    const data = await fetchJson('/api/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question: lastResult.value.question || lastQuestion.value,
+        answer: lastResult.value.answer,
+        trace: lastResult.value.trace || [],
+        mode: lastResult.value.mode,
+        model_id: lastResult.value.model_id,
+        knowledge_hits: lastResult.value.knowledge_hits || [],
+        campus_name: campusName.value,
+      }),
+    })
+    const blob = new Blob([data.markdown || ''], {
+      type: 'text/markdown;charset=utf-8',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = data.filename || '研判报告.md'
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    messages.value.push({
+      role: 'assistant',
+      content: `导出失败：${e.message || e}`,
+    })
   }
 }
 
@@ -455,6 +573,12 @@ onUnmounted(() => {
 .demo-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.report-btn {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
 }
 
 .messages {

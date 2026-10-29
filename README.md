@@ -4,10 +4,18 @@
 
 ## 目录
 
-- `frontend/` — Vue 3 + Vite + Leaflet（对话 + 地图 + 模型切换）
-- `backend/` — FastAPI + LangChain Agent + GIS 工具
-- `data/` — 静态 GeoJSON、JSON 配置、模型列表
+- `frontend/` — Vue 3 + Vite + Leaflet（对话流式 + 地图 + 模型切换 + 报告导出）
+- `backend/` — FastAPI + LangChain Agent + GIS + RAG + 报告
+- `data/` — GeoJSON、配置、模型列表、`knowledge/` 知识库
 - `报告文档/` — 设计文档与接口文档
+
+## 能力概览
+
+- 自然语言空间问答（Agent + GIS）
+- 本地 RAG（`data/knowledge/`）
+- SSE 流式对话
+- 研判报告 Markdown 导出
+- Demo D1–D4（含规范检索）
 
 ## 本地启动
 
