@@ -4,7 +4,7 @@
 
 ## 目录
 
-- `frontend/` — Vue 3 + Vite + Leaflet（对话流式 + 地图 + 模型切换 + 报告导出）
+- `frontend/` — Vue 3 + Vite + **Cesium / Three.js 双视图**（对话流式 + 落图 + 报告导出）
 - `backend/` — FastAPI + LangChain Agent + GIS + RAG + 报告
 - `data/` — GeoJSON、配置、模型列表、`knowledge/` 知识库
 - `报告文档/` — 设计文档与接口文档
@@ -16,6 +16,26 @@
 - SSE 流式对话
 - 研判报告 Markdown 导出
 - Demo D1–D4（含规范检索）
+- **右下角切换**：Three 柱体演示 ↔ Cesium 3D GIS（同一套 `map_actions`）
+
+### Cesium 可选增强
+
+复制 `frontend/.env.example` 为 `frontend/.env`，填写免费 [Cesium Ion Token](https://cesium.com/ion/tokens)：
+
+```env
+VITE_CESIUM_ION_TOKEN=你的token
+```
+
+有 Token 时启用世界地形 + OSM Buildings；无 Token 仍可用地球 + 公开影像叠加分析结果。
+
+**默认先开 Three 柱体视图**（保证能进页）；再点右下角切到 Cesium。  
+Cesium 通过 `index.html` 全局脚本加载（`/cesium/Cesium.js`），不要用 Vite 直接 `import 'cesium'`，否则易白屏。
+
+常见问题：
+
+- `InvalidStateError: source image could not be decoded`：Ion/瓦片失败 → 已关默认 Ion 底图并做影像回退；可开 VPN 或配 Ion Token。  
+- 白屏 / `mersenne-twister` export：请硬刷新；确认 `index.html` 已引入 `/cesium/Cesium.js`。  
+- 前端若提示端口占用，以终端显示的 `localhost:5174` 等为准。
 
 ## 本地启动
 

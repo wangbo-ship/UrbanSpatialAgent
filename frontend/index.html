@@ -5,6 +5,12 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>空间问答与研判助手</title>
+    <!-- Cesium 用全局脚本加载，避免 Vite ESM 预构建 mersenne-twister 白屏 -->
+    <script>
+      window.CESIUM_BASE_URL = '/cesium/'
+    </script>
+    <link rel="stylesheet" href="/cesium/Widgets/widgets.css" />
+    <script src="/cesium/Cesium.js"></script>
   </head>
   <body>
     <div id="app"></div>

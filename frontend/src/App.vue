@@ -34,7 +34,11 @@
         <div class="panel-head">
           <h2>对话</h2>
           <p class="hint">
-            流式输出已开启；可点 Demo；完成后可导出研判报告。无模型时自动规则回退。
+            问答后可在右下角切换
+            <strong>Three 柱体演示</strong>
+            /
+            <strong>Cesium 3D GIS</strong>
+            查看同一套分析结果。流式对话 + Demo + 可导出报告。
           </p>
         </div>
 
@@ -96,7 +100,36 @@
       </aside>
 
       <section class="map-wrap">
-        <div ref="mapEl" class="map"></div>
+        <div
+          ref="threeEl"
+          class="map map-panel"
+          :class="{ active: viewMode === 'three' }"
+        ></div>
+        <div
+          ref="cesiumEl"
+          class="map map-panel"
+          :class="{ active: viewMode === 'cesium' }"
+        ></div>
+
+        <div class="map-badge">{{ viewBadge }}</div>
+        <div v-if="viewError" class="map-error">{{ viewError }}</div>
+
+        <div class="view-switch">
+          <button
+            type="button"
+            :class="{ on: viewMode === 'three' }"
+            @click="switchView('three')"
+          >
+            Three 柱体
+          </button>
+          <button
+            type="button"
+            :class="{ on: viewMode === 'cesium' }"
+            @click="switchView('cesium')"
+          >
+            Cesium 3D GIS
+          </button>
+        </div>
       </section>
     </main>
   </div>
@@ -104,10 +137,10 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import { createThreeMap } from './map/threeMap.js'
 
-const mapEl = ref(null)
+const threeEl = ref(null)
+const cesiumEl = ref(null)
 const msgBox = ref(null)
 const campusName = ref('中国地质大学（武汉）未来城校区')
 const demos = ref([])
@@ -119,17 +152,38 @@ const sending = ref(false)
 const messages = ref([])
 const lastResult = ref(null)
 const lastQuestion = ref('')
+/** @type {import('vue').Ref<'three' | 'cesium'>} */
+const viewMode = ref('three')
+const viewError = ref('')
 
-let map = null
-let baseLayers = []
-let resultLayers = []
-let campusCenter = [30.458, 114.615]
+/** @type {ReturnType<typeof createThreeMap> | null} */
+let threeMap = null
+/** @type {any} */
+let cesiumMap = null
+let campusCenter = { lon: 114.615, lat: 30.458 }
+/** 最近一次分析结果，切换视图时重放 */
+let lastMapActions = []
+/** 底图图层缓存，Cesium 懒加载后补绘 */
+let cachedBaseLayers = []
+
+const LAYER_COLORS = {
+  schools: '#38bdf8',
+  hospitals: '#f472b6',
+  parks: '#34d399',
+  events: '#fbbf24',
+}
 
 const apiStatusText = computed(() => {
   if (apiOk.value === null) return '检测后端…'
   if (apiOk.value) return '后端已连接'
   return '后端未连接'
 })
+
+const viewBadge = computed(() =>
+  viewMode.value === 'cesium'
+    ? 'Cesium · 3D GIS'
+    : 'Three.js · 柱体空间分析',
+)
 
 async function fetchJson(url, options) {
   const res = await fetch(url, options)
@@ -154,104 +208,98 @@ function formatTrace(t) {
   }
 }
 
-function clearResultLayers() {
-  for (const layer of resultLayers) {
-    map.removeLayer(layer)
+function applyMapActions(actions) {
+  lastMapActions = Array.isArray(actions) ? actions : []
+  if (viewMode.value === 'three') {
+    threeMap?.applyMapActions(lastMapActions)
+  } else {
+    cesiumMap?.applyMapActions(lastMapActions)
   }
-  resultLayers = []
 }
 
-function applyMapActions(actions) {
-  if (!map || !Array.isArray(actions)) return
-  clearResultLayers()
-  for (const action of actions) {
-    if (action.type === 'setView') {
-      map.setView([action.lat, action.lon], action.zoom || 15)
-    } else if (action.type === 'addGeoJSON') {
-      const style = action.style || {}
-      const layer = L.geoJSON(action.geojson, {
-        style() {
-          return {
-            color: style.color || '#2563eb',
-            weight: style.weight || 2,
-            fillColor: style.fillColor || style.color || '#3b82f6',
-            fillOpacity: style.fillOpacity ?? 0.12,
-          }
-        },
-        pointToLayer(_f, latlng) {
-          return L.circleMarker(latlng, {
-            radius: style.radius || 8,
-            color: style.color || '#0f766e',
-            weight: 2,
-            fillColor: style.fillColor || style.color || '#14b8a6',
-            fillOpacity: 0.9,
-          })
-        },
-        onEachFeature(feature, lyr) {
-          const p = feature.properties || {}
-          const title = p.name || p.role || ''
-          if (title) lyr.bindPopup(String(title))
-        },
-      }).addTo(map)
-      resultLayers.push(layer)
-    }
+function paintBaseTo(mapApi) {
+  if (!mapApi) return
+  mapApi.setOrigin(campusCenter.lon, campusCenter.lat)
+  mapApi.addCampusMarker(campusCenter.lon, campusCenter.lat, campusName.value)
+  for (const layer of cachedBaseLayers) {
+    mapApi.addBaseLayer(layer.geo, layer.style)
+  }
+}
+
+async function ensureThree() {
+  if (threeMap || !threeEl.value) return
+  try {
+    threeMap = createThreeMap(threeEl.value)
+    paintBaseTo(threeMap)
+    await nextTick()
+    threeMap.onResize()
+    if (lastMapActions.length) threeMap.applyMapActions(lastMapActions)
+    viewError.value = ''
+  } catch (e) {
+    console.error(e)
+    viewError.value = `Three 初始化失败：${e.message || e}`
+  }
+}
+
+async function ensureCesium() {
+  if (cesiumMap || !cesiumEl.value) return
+  try {
+    // 动态导入，避免 Cesium 启动失败导致整页白屏
+    const { createCesiumMap } = await import('./map/cesiumMap.js')
+    cesiumMap = await createCesiumMap(cesiumEl.value, campusCenter)
+    paintBaseTo(cesiumMap)
+    await nextTick()
+    cesiumMap.onResize()
+    if (lastMapActions.length) cesiumMap.applyMapActions(lastMapActions)
+    viewError.value = ''
+  } catch (e) {
+    console.error(e)
+    viewError.value = `Cesium 初始化失败：${e.message || e}（可先用 Three 柱体视图）`
+    viewMode.value = 'three'
+    await ensureThree()
+  }
+}
+
+async function switchView(mode) {
+  if (mode !== 'three' && mode !== 'cesium') return
+  viewMode.value = mode
+  await nextTick()
+  if (mode === 'three') {
+    await ensureThree()
+    threeMap?.onResize()
+    if (lastMapActions.length) threeMap?.applyMapActions(lastMapActions)
+  } else {
+    await ensureCesium()
+    cesiumMap?.onResize()
+    if (lastMapActions.length) cesiumMap?.applyMapActions(lastMapActions)
   }
 }
 
 async function initMap() {
-  let zoom = 15
   try {
     const cfg = await fetchJson('/api/config')
     if (Array.isArray(cfg.campus_center) && cfg.campus_center.length === 2) {
-      campusCenter = [cfg.campus_center[1], cfg.campus_center[0]]
+      campusCenter = { lon: cfg.campus_center[0], lat: cfg.campus_center[1] }
     }
-    if (cfg.default_zoom) zoom = cfg.default_zoom
     if (cfg.campus_name) campusName.value = cfg.campus_name
     apiOk.value = true
   } catch {
     apiOk.value = false
   }
 
-  map = L.map(mapEl.value).setView(campusCenter, zoom)
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap',
-  }).addTo(map)
-
-  const campusMarker = L.circleMarker(campusCenter, {
-    radius: 10,
-    color: '#1d4ed8',
-    weight: 2,
-    fillColor: '#2563eb',
-    fillOpacity: 0.9,
-  })
-    .addTo(map)
-    .bindPopup(campusName.value)
-  baseLayers.push(campusMarker)
-
   try {
     const layerList = await fetchJson('/api/layers')
+    cachedBaseLayers = []
     for (const name of layerList.layers || []) {
       const geo = await fetchJson(`/api/layers/${name}`)
-      const layer = L.geoJSON(geo, {
-        pointToLayer(_f, latlng) {
-          return L.circleMarker(latlng, {
-            radius: 6,
-            color: '#64748b',
-            weight: 1,
-            fillColor: '#94a3b8',
-            fillOpacity: 0.8,
-          })
-        },
-        onEachFeature(feature, lyr) {
-          const p = feature.properties || {}
-          lyr.bindPopup(`${p.name || name}<br/>${p.category || ''}`)
-        },
-      }).addTo(map)
-      baseLayers.push(layer)
+      cachedBaseLayers.push({
+        name,
+        geo,
+        style: { color: LAYER_COLORS[name] || '#94a3b8', radius: 7 },
+      })
     }
   } catch {
-    /* ignore */
+    cachedBaseLayers = []
   }
 
   try {
@@ -269,6 +317,9 @@ async function initMap() {
   } catch {
     models.value = []
   }
+
+  // 先起 Three，保证页面可用；Cesium 按需切换加载
+  await ensureThree()
 }
 
 async function sendQuestion() {
@@ -425,9 +476,13 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (map) {
-    map.remove()
-    map = null
+  if (threeMap) {
+    threeMap.dispose()
+    threeMap = null
+  }
+  if (cesiumMap) {
+    cesiumMap.dispose()
+    cesiumMap = null
   }
 })
 </script>
@@ -671,12 +726,88 @@ onUnmounted(() => {
 }
 
 .map-wrap {
+  position: relative;
   min-height: 0;
+  background: #0b1220;
 }
 
 .map {
   width: 100%;
   height: 100%;
+  overflow: hidden;
+}
+
+.map-panel {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.map-panel.active {
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 1;
+}
+
+.map-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #cbd5e1;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.map-error {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 5;
+  max-width: 60%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(127, 29, 29, 0.9);
+  color: #fecaca;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.view-switch {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 6;
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.88);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.view-switch button {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #cbd5e1;
+  background: transparent;
+}
+
+.view-switch button.on {
+  background: #2563eb;
+  color: #fff;
+}
+
+.view-switch button:hover:not(.on) {
+  background: rgba(148, 163, 184, 0.2);
 }
 
 @media (max-width: 900px) {
